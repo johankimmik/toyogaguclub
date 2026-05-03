@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>FACTORY ATLAS — 공유 가공 공장 지도</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --bg-0: #0b0d10;
+  --bg-1: #14171b;
+  --bg-2: #1a1e23;
+  --bg-3: #232830;
+  --line: #262b32;
+  --line-bright: #353c46;
+  --text-0: #e6e8ec;
+  --text-1: #9aa2ad;
+  --text-2: #5c6470;
+  --text-3: #404853;
+  --accent: #e0a045;
+  --accent-bright: #f0b055;
+  --accent-dim: #8a6230;
+  --signal: #5bc4e0;
+  --warn: #d97a5a;
+  --good: #88b97c;
+  --danger: #c85a5a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'IBM Plex Sans KR', -apple-system, sans-serif;
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+button {
+  font-family: inherit;
+  background: transparent;
+  border: 1px solid var(--line-bright);
+  color: var(--text-0);
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.12s;
+  letter-spacing: 0.02em;
+  border-radius: 0;
+}
+button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button.primary {
+  background: var(--accent);
+  color: var(--bg-0);
+  border-color: var(--accent);
+  font-weight: 500;
+}
+button.primary:hover {
+  background: var(--accent-bright);
+  color: var(--bg-0);
+  border-color: var(--accent-bright);
+}
+button.ghost {
+  border-color: transparent;
+  color: var(--text-1);
+  padding: 4px 8px;
+}
+button.ghost:hover {
+  color: var(--text-0);
+  background: var(--bg-2);
+  border-color: transparent;
+}
+button.danger-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+input, textarea, select {
+  font-family: inherit;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--text-0);
+  padding: 9px 11px;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.12s;
+  border-radius: 0;
+}
+input::placeholder, textarea::placeholder { color: var(--text-3); }
+input:focus, textarea:focus, select:focus {
+  border-color: var(--accent);
+}
+textarea {
+  resize: vertical;
+  min-height: 64px;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-1); }
+::-webkit-scrollbar-thumb { background: var(--line-bright); }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* App layout */
+.app {
+  display: grid;
+  grid-template-rows: 56px 1fr 28px;
+  height: 100vh;
+}
+
+/* Header */
+.header {
+  display: grid;
+  grid-template-columns: 320px 1fr auto;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+  position: relative;
+  z-index: 10;
+}
+
+.brand {
+  padding: 0 20px;
+  border-right: 1px solid var(--line);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  width: 16px;
+  height: 16px;
+  position: relative;
+  flex-shrink: 0;
+}
+.brand-mark::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 100% 60%, 60% 100%, 0 100%);
+}
+.brand-mark::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: var(--bg-0);
+  top: 6px;
+  left: 6px;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.brand-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: var(--text-0);
+  font-weight: 500;
+}
+.brand-sub {
+  font-size: 10.5px;
+  color: var(--text-2);
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
+.header-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  height: 100%;
+  border-right: 1px solid var(--line);
+}
+.search-icon {
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+.search-input {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 13px;
+  flex: 1;
+  height: 100%;
+}
+.search-input:focus { border: 0; }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+}
+
+/* Main */
+.main {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--bg-1);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.sidebar-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.sidebar-count {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.sidebar-count-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 26px;
+  font-weight: 300;
+  color: var(--text-0);
+  line-height: 1;
+}
+.sidebar-count-label {
+  font-size: 11px;
+  color: var(--text-2);
+  letter-spacing: 0.04em;
+}
+
+.sidebar-list {
+  overflow-y: auto;
+  flex: 1;
+}
+.sidebar-empty {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.sidebar-empty strong {
+  color: var(--text-1);
+  font-weight: 400;
+}
+
+.item {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 0.12s;
+  position: relative;
+}
+.item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 0.12s;
+}
+.item:hover { background: var(--bg-2); }
+.item.active { background: var(--bg-2); }
+.item.active::before { background: var(--accent); }
+
+.item-id {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: var(--text-3);
+  letter-spacing: 0.08em;
+  margin-bottom: 5px;
+}
+.item-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-0);
+  margin-bottom: 5px;
+  word-break: keep-all;
+}
+.item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+.item-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border: 1px solid var(--line-bright);
+  color: var(--text-1);
+}
+.item-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text-3);
+}
+.item-address {
+  font-size: 11px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-comment-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--signal);
+  margin-top: 6px;
+}
+
+/* Map */
+.map-area {
+  position: relative;
+  background: var(--bg-0);
+}
+#map {
+  width: 100%;
+  height: 100%;
+}
+.leaflet-container {
+  background: #0b0d10 !important;
+  font-family: 'IBM Plex Sans KR', sans-serif !important;
+}
+.leaflet-control-zoom {
+  border: 1px solid var(--line) !important;
+  margin: 16px !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+.leaflet-control-zoom a {
+  background: var(--bg-1) !important;
+  color: var(--text-0) !important;
+  border-color: var(--line) !important;
+  width: 28px !important;
+  height: 28px !important;
+  line-height: 26px !important;
+  font-size: 16px !important;
+  border-radius: 0 !important;
+}
+.leaflet-control-zoom a:hover {
+  background: var(--bg-2) !important;
+  color: var(--accent) !important;
+}
+.leaflet-control-attribution {
+  background: rgba(11, 13, 16, 0.7) !important;
+  color: var(--text-2) !important;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+  border-radius: 0 !important;
+}
+.leaflet-control-attribution a { color: var(--text-1) !important; }
+
+/* Custom marker */
+.factory-pin-wrapper { background: transparent !important; border: 0 !important; }
+.factory-pin {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s;
+}
+.factory-pin::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  border: 2px solid var(--bg-0);
+  box-sizing: border-box;
+}
+.factory-pin::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border: 1px solid var(--signal);
+  opacity: 0;
+  transition: opacity 0.2s, inset 0.2s;
+}
+.factory-pin:hover { transform: scale(1.15); }
+.factory-pin.active::before { background: var(--signal); }
+.factory-pin.active::after { opacity: 1; inset: -6px; }
+
+/* Map overlay readouts */
+.map-overlay-tl {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 500;
+  background: rgba(20, 23, 27, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  padding: 10px 14px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text-1);
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+.map-overlay-tl-row { display: flex; gap: 10px; }
+.map-overlay-tl-row + .map-overlay-tl-row { margin-top: 3px; }
+.map-overlay-tl-label { color: var(--text-3); width: 40px; }
+.map-overlay-tl-val { color: var(--text-1); }
+
+/* Pick mode banner */
+.pick-overlay {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 800;
+  background: var(--bg-1);
+  border: 1px solid var(--accent);
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--accent);
+  display: none;
+  align-items: center;
+  gap: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.08em;
+}
+.pick-overlay.visible { display: flex; }
+.pick-overlay-dot {
+  width: 6px; height: 6px;
+  background: var(--accent);
+  animation: blink 1s infinite;
+}
+@keyframes blink { 50% { opacity: 0.2; } }
+body.pick-mode .leaflet-container { cursor: crosshair !important; }
+
+/* Detail panel */
+.detail {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 380px;
+  max-height: calc(100% - 32px);
+  background: rgba(20, 23, 27, 0.96);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+  display: none;
+  flex-direction: column;
+  z-index: 700;
+}
+.detail.visible { display: flex; }
+
+.detail-header {
+  padding: 14px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.detail-id {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+.detail-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.detail-name {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--text-0);
+  flex: 1;
+  word-break: keep-all;
+}
+.detail-close {
+  background: transparent;
+  border: 0;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.detail-close:hover { color: var(--text-0); border: 0; background: transparent; }
+.detail-tag {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  padding: 3px 8px;
+  border: 1px solid var(--accent-dim);
+  color: var(--accent);
+  margin-top: 10px;
+}
+
+.detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px 18px;
+}
+
+.detail-section { margin-bottom: 20px; }
+.detail-section:last-child { margin-bottom: 0; }
+
+.section-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+
+.section-content {
+  font-size: 13px;
+  color: var(--text-0);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: keep-all;
+}
+.section-content.dim { color: var(--text-1); }
+.section-content.coord {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-2);
+  letter-spacing: 0.04em;
+}
+
+/* Comments */
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.comment {
+  padding: 10px 12px;
+  background: var(--bg-2);
+  border-left: 2px solid var(--line-bright);
+}
+.comment-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+  gap: 8px;
+}
+.comment-author {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+.comment-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: var(--text-3);
+}
+.comment-text {
+  font-size: 12px;
+  color: var(--text-0);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: keep-all;
+}
+.comment-empty {
+  font-size: 11px;
+  color: var(--text-3);
+  font-style: italic;
+}
+
+.comment-form {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.comment-form textarea { font-size: 12px; min-height: 56px; }
+.comment-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.detail-footer {
+  padding: 10px 18px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.detail-footer-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9.5px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+
+/* Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+.modal-backdrop.visible { display: flex; }
+.modal {
+  background: var(--bg-1);
+  border: 1px solid var(--line-bright);
+  width: 480px;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--text-0);
+  font-weight: 500;
+}
+.modal-body {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.field { display: flex; flex-direction: column; gap: 7px; }
+.field-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--text-2);
+}
+.field-label .req { color: var(--accent); margin-left: 3px; }
+.field-help { font-size: 11px; color: var(--text-3); }
+.address-row { display: flex; gap: 8px; }
+.address-row input { flex: 1; }
+.address-row button { white-space: nowrap; flex-shrink: 0; }
+
+.location-status {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 8px 11px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.04em;
+}
+.location-status.success { color: var(--good); border-color: rgba(136, 185, 124, 0.35); }
+.location-status.error { color: var(--warn); border-color: rgba(217, 122, 90, 0.35); }
+.location-status .dot { width: 6px; height: 6px; background: currentColor; flex-shrink: 0; }
+
+.modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.modal-footer .right-group { margin-left: auto; display: flex; gap: 8px; }
+
+/* Status bar */
+.status-bar {
+  border-top: 1px solid var(--line);
+  background: var(--bg-1);
+  display: flex;
+  align-items: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  padding: 0 16px;
+  gap: 20px;
+}
+.status-section { display: flex; align-items: center; gap: 6px; }
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--good);
+  animation: pulse 2.4s infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.status-section.right { margin-left: auto; }
+.status-label { color: var(--text-3); }
+.status-val { color: var(--text-1); }
+.alias-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+}
+.alias-link:hover { text-decoration: underline; }
+
+/* Welcome / first run */
+.welcome-modal .modal { width: 440px; }
+.welcome-intro {
+  font-size: 12.5px;
+  color: var(--text-1);
+  line-height: 1.7;
+  margin-bottom: 4px;
+  word-break: keep-all;
+}
+.welcome-bullet {
+  font-size: 11.5px;
+  color: var(--text-2);
+  display: flex;
+  gap: 8px;
+  word-break: keep-all;
+  line-height: 1.55;
+}
+.welcome-bullet::before {
+  content: '▸';
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* Category chips */
+.category-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.category-chip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  cursor: pointer;
+  background: transparent;
+  transition: all 0.12s;
+}
+.category-chip:hover {
+  border-color: var(--accent-dim);
+  color: var(--text-0);
+}
+.category-chip.selected {
+  background: var(--accent);
+  color: var(--bg-0);
+  border-color: var(--accent);
+  font-weight: 500;
+}
+
+/* Mobile */
+@media (max-width: 720px) {
+  .header { grid-template-columns: 1fr auto; }
+  .brand-text { display: none; }
+  .header-search { display: none; }
+  .main { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .detail { width: calc(100% - 32px); top: 12px; right: 16px; left: 16px; }
+  .map-overlay-tl { display: none; }
+  .status-bar { font-size: 9px; gap: 10px; padding: 0 10px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="header">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-text">
+        <div class="brand-name">FACTORY ATLAS</div>
+        <div class="brand-sub">공유 가공 공장 지도</div>
+      </div>
+    </div>
+    <div class="header-search">
+      <span class="search-icon mono">SEARCH /</span>
+      <input type="text" class="search-input" id="searchInput" placeholder="업체명 · 주소 · 특징 · 카테고리로 검색">
+    </div>
+    <div class="header-actions">
+      <button class="primary" id="addBtn">+ 신규 등록</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">REGISTERED FACILITIES</div>
+        <div class="sidebar-count">
+          <span class="sidebar-count-num mono" id="totalCount">0</span>
+          <span class="sidebar-count-label">/ 등록 업체</span>
+        </div>
+      </div>
+      <div class="sidebar-list" id="sidebarList">
+        <div class="sidebar-empty">
+          <strong>등록된 업체가 없습니다</strong><br><br>
+          「+ 신규 등록」으로<br>첫 업체를 추가하세요
+        </div>
+      </div>
+    </aside>
+
+    <div class="map-area">
+      <div id="map"></div>
+      <div class="map-overlay-tl">
+        <div class="map-overlay-tl-row"><span class="map-overlay-tl-label">LAT</span><span class="map-overlay-tl-val" id="latReadout">--</span></div>
+        <div class="map-overlay-tl-row"><span class="map-overlay-tl-label">LNG</span><span class="map-overlay-tl-val" id="lngReadout">--</span></div>
+        <div class="map-overlay-tl-row"><span class="map-overlay-tl-label">ZOOM</span><span class="map-overlay-tl-val" id="zoomReadout">--</span></div>
+      </div>
+      <div class="pick-overlay" id="pickOverlay">
+        <span class="pick-overlay-dot"></span>
+        <span>PICK MODE · 지도에서 위치 클릭</span>
+        <button class="ghost" id="cancelPickBtn">ESC</button>
+      </div>
+      <div class="detail" id="detailPanel"></div>
+    </div>
+  </main>
+
+  <footer class="status-bar">
+    <div class="status-section">
+      <div class="status-dot"></div>
+      <span class="status-label">SYS</span>
+      <span class="status-val">ONLINE</span>
+    </div>
+    <div class="status-section">
+      <span class="status-label">SYNC</span>
+      <span class="status-val" id="syncTime">--:--:--</span>
+    </div>
+    <div class="status-section">
+      <span class="status-label">NODES</span>
+      <span class="status-val" id="nodesStatus">0</span>
+    </div>
+    <div class="status-section right">
+      <span class="status-label">DESIGNER</span>
+      <span class="alias-link" id="aliasLink">UNKNOWN</span>
+    </div>
+  </footer>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-backdrop" id="addModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="addModalTitle">NEW FACILITY ENTRY</div>
+      <button class="ghost" id="closeAddModalBtn">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="field-label">업체명<span class="req">*</span></label>
+        <input type="text" id="fName" placeholder="예) 서일정밀, 한길사출">
+      </div>
+      <div class="field">
+        <label class="field-label">카테고리</label>
+        <div class="category-options" id="catOptions">
+          <button type="button" class="category-chip" data-cat="정밀가공">정밀가공</button>
+          <button type="button" class="category-chip" data-cat="사출성형">사출성형</button>
+          <button type="button" class="category-chip" data-cat="판금">판금</button>
+          <button type="button" class="category-chip" data-cat="도장">도장</button>
+          <button type="button" class="category-chip" data-cat="인쇄">인쇄</button>
+          <button type="button" class="category-chip" data-cat="목공">목공</button>
+          <button type="button" class="category-chip" data-cat="유리">유리</button>
+          <button type="button" class="category-chip" data-cat="금형">금형</button>
+          <button type="button" class="category-chip" data-cat="3D프린팅">3D프린팅</button>
+          <button type="button" class="category-chip" data-cat="기타">기타</button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label">주소<span class="req">*</span></label>
+        <div class="address-row">
+          <input type="text" id="fAddress" placeholder="예) 서울특별시 성동구 성수이로7길 39">
+          <button type="button" id="geocodeBtn">위치 조회</button>
+        </div>
+        <div class="field-help">주소가 검색되지 않으면 「지도에서 직접 지정」을 이용하세요.</div>
+        <div class="location-status" id="locStatus" style="display:none"></div>
+        <button type="button" class="ghost" id="pickOnMapBtn" style="align-self:flex-start; margin-top:2px">▢ 지도에서 직접 지정</button>
+      </div>
+      <div class="field">
+        <label class="field-label">업체 특징 / 비고</label>
+        <textarea id="fNotes" placeholder="가능 작업 범위 · 단가 수준 · 담당자 · 강점 · 주의사항 등을 자유롭게 기록하세요"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="danger-btn" id="deleteEntryBtn" style="display:none">삭제</button>
+      <div class="right-group">
+        <button id="cancelAddBtn">취소</button>
+        <button class="primary" id="saveBtn">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Welcome Modal -->
+<div class="modal-backdrop welcome-modal" id="welcomeModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">SESSION INITIALIZATION</div>
+    </div>
+    <div class="modal-body">
+      <div class="welcome-intro">
+        FACTORY ATLAS는 디자이너들이 함께 가공 업체 정보를 쌓고 공유하는 지도입니다.
+      </div>
+      <div class="welcome-bullet"><span>등록한 업체와 댓글은 모든 사용자에게 공유됩니다</span></div>
+      <div class="welcome-bullet"><span>업데이트 사항은 댓글로 누적해 기록됩니다</span></div>
+      <div class="welcome-bullet"><span>입력한 이름은 등록·댓글의 작성자로 표기됩니다</span></div>
+      <div class="field" style="margin-top:6px">
+        <label class="field-label">디자이너 이름 / 이니셜<span class="req">*</span></label>
+        <input type="text" id="aliasInput" placeholder="예) JH 또는 김지환" maxlength="24">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="right-group">
+        <button class="primary" id="aliasSaveBtn">시작</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+const STORAGE_KEY = 'factory-atlas-data-v1';
+const ALIAS_KEY = 'factory-atlas-alias-v1';
+
+const state = {
+  facilities: [],
+  selectedId: null,
+  alias: '',
+  search: '',
+  pickMode: false,
+  editingId: null,
+  pendingLocation: null,
+};
+
+let leafletMap = null;
+let markersById = {};
+let pickHandler = null;
+
+// ============ STORAGE ============
+async function loadData() {
+  try {
+    const result = await window.storage.get(STORAGE_KEY, true);
+    if (result && result.value) {
+      const data = JSON.parse(result.value);
+      state.facilities = Array.isArray(data.facilities) ? data.facilities : [];
+    }
+  } catch (e) {
+    state.facilities = [];
+  }
+  try {
+    const a = await window.storage.get(ALIAS_KEY, false);
+    if (a && a.value) state.alias = a.value;
+  } catch (e) {
+    state.alias = '';
+  }
+}
+
+async function saveData() {
+  try {
+    await window.storage.set(
+      STORAGE_KEY,
+      JSON.stringify({ facilities: state.facilities }),
+      true
+    );
+    updateSyncTime();
+  } catch (e) {
+    console.error('Save failed', e);
+    alert('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  }
+}
+
+async function saveAlias(alias) {
+  state.alias = alias;
+  try {
+    await window.storage.set(ALIAS_KEY, alias, false);
+  } catch (e) {}
+}
+
+// ============ HELPERS ============
+function generateId() {
+  return 'fac_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+}
+function shortId(id) { return (id || '').slice(-6).toUpperCase(); }
+
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return '방금 전';
+  if (diff < 3600) return Math.floor(diff/60) + '분 전';
+  if (diff < 86400) return Math.floor(diff/3600) + '시간 전';
+  if (diff < 86400*7) return Math.floor(diff/86400) + '일 전';
+  const pad = n => String(n).padStart(2, '0');
+  return `${String(d.getFullYear()).slice(2)}.${pad(d.getMonth()+1)}.${pad(d.getDate())}`;
+}
+
+function formatTimeMono(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function updateSyncTime() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const el = document.getElementById('syncTime');
+  if (el) el.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/[&<>"']/g, ch => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[ch]));
+}
+
+// ============ MAP ============
+function initMap() {
+  leafletMap = L.map('map', {
+    zoomControl: true,
+    attributionControl: true,
+    preferCanvas: true,
+    minZoom: 5,
+  }).setView([36.3, 127.8], 7); // South Korea overview
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap · © CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(leafletMap);
+
+  leafletMap.on('mousemove', (e) => {
+    document.getElementById('latReadout').textContent = e.latlng.lat.toFixed(5);
+    document.getElementById('lngReadout').textContent = e.latlng.lng.toFixed(5);
+  });
+  leafletMap.on('zoomend', () => {
+    document.getElementById('zoomReadout').textContent = leafletMap.getZoom();
+  });
+  document.getElementById('zoomReadout').textContent = leafletMap.getZoom();
+}
+
+function renderMarkers() {
+  Object.values(markersById).forEach(m => leafletMap.removeLayer(m));
+  markersById = {};
+
+  filteredFacilities().forEach(f => {
+    if (f.lat == null || f.lng == null) return;
+    const isActive = state.selectedId === f.id;
+    const icon = L.divIcon({
+      className: 'factory-pin-wrapper',
+      html: `<div class="factory-pin ${isActive ? 'active' : ''}" title="${escapeHtml(f.name)}"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+    });
+    const m = L.marker([f.lat, f.lng], { icon, riseOnHover: true }).addTo(leafletMap);
+    m.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      selectFacility(f.id, false);
+    });
+    markersById[f.id] = m;
+  });
+}
+
+function panToFacility(id) {
+  const f = state.facilities.find(x => x.id === id);
+  if (!f || f.lat == null) return;
+  const targetZoom = Math.max(14, leafletMap.getZoom());
+  leafletMap.flyTo([f.lat, f.lng], targetZoom, { duration: 0.6 });
+}
+
+// ============ GEOCODING (Nominatim) ============
+async function geocodeAddress(address) {
+  const headers = { 'Accept': 'application/json' };
+  // try with KR country bias first
+  try {
+    const url1 = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&accept-language=ko&limit=1&countrycodes=kr`;
+    const r1 = await fetch(url1, { headers });
+    if (r1.ok) {
+      const d1 = await r1.json();
+      if (d1 && d1.length > 0) {
+        return { lat: parseFloat(d1[0].lat), lng: parseFloat(d1[0].lon), displayName: d1[0].display_name };
+      }
+    }
+    // fallback: no country bias
+    const url2 = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&accept-language=ko&limit=1`;
+    const r2 = await fetch(url2, { headers });
+    if (r2.ok) {
+      const d2 = await r2.json();
+      if (d2 && d2.length > 0) {
+        return { lat: parseFloat(d2[0].lat), lng: parseFloat(d2[0].lon), displayName: d2[0].display_name };
+      }
+    }
+  } catch (e) {
+    console.warn('Geocode error', e);
+  }
+  return null;
+}
+
+// ============ RENDERING ============
+function filteredFacilities() {
+  let list = state.facilities.slice();
+  const q = state.search.trim().toLowerCase();
+  if (q) {
+    list = list.filter(f =>
+      (f.name || '').toLowerCase().includes(q) ||
+      (f.address || '').toLowerCase().includes(q) ||
+      (f.notes || '').toLowerCase().includes(q) ||
+      (f.category || '').toLowerCase().includes(q)
+    );
+  }
+  return list.sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+}
+
+function renderSidebar() {
+  const list = filteredFacilities();
+  const container = document.getElementById('sidebarList');
+  document.getElementById('totalCount').textContent = String(state.facilities.length).padStart(2, '0');
+  document.getElementById('nodesStatus').textContent = state.facilities.length;
+
+  if (list.length === 0) {
+    if (state.search) {
+      container.innerHTML = `<div class="sidebar-empty"><strong>검색 결과 없음</strong><br><br>「${escapeHtml(state.search)}」<br>에 해당하는 업체가 없습니다</div>`;
+    } else {
+      container.innerHTML = `<div class="sidebar-empty"><strong>등록된 업체가 없습니다</strong><br><br>「+ 신규 등록」으로<br>첫 업체를 추가하세요</div>`;
+    }
+    return;
+  }
+
+  container.innerHTML = list.map(f => {
+    const cnt = (f.comments || []).length;
+    return `
+      <div class="item ${state.selectedId === f.id ? 'active' : ''}" data-id="${f.id}">
+        <div class="item-id mono">ID · ${shortId(f.id)}</div>
+        <div class="item-name">${escapeHtml(f.name)}</div>
+        <div class="item-meta">
+          ${f.category ? `<span class="item-tag">${escapeHtml(f.category)}</span>` : ''}
+          <span class="item-time mono">${formatTime(f.createdAt)}</span>
+        </div>
+        <div class="item-address">${escapeHtml(f.address || '주소 미입력')}</div>
+        ${cnt > 0 ? `<div class="item-comment-count"><span>▣</span> ${cnt} updates</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('.item').forEach(el => {
+    el.addEventListener('click', () => selectFacility(el.dataset.id, true));
+  });
+}
+
+function selectFacility(id, panTo) {
+  state.selectedId = id;
+  renderSidebar();
+  renderMarkers();
+  renderDetail();
+  if (panTo) panToFacility(id);
+  // ensure selected item is in view in sidebar
+  const activeEl = document.querySelector('.item.active');
+  if (activeEl) activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function deselectFacility() {
+  state.selectedId = null;
+  renderSidebar();
+  renderMarkers();
+  document.getElementById('detailPanel').classList.remove('visible');
+}
+
+function renderDetail() {
+  const panel = document.getElementById('detailPanel');
+  if (!state.selectedId) { panel.classList.remove('visible'); return; }
+  const f = state.facilities.find(x => x.id === state.selectedId);
+  if (!f) { panel.classList.remove('visible'); return; }
+
+  const comments = (f.comments || []).slice().sort((a,b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+  const commentsHtml = comments.length === 0
+    ? `<div class="comment-empty">아직 업데이트가 없습니다. 첫 댓글을 남겨주세요.</div>`
+    : comments.map(c => `
+        <div class="comment">
+          <div class="comment-meta">
+            <span class="comment-author">@${escapeHtml(c.author || 'anon')}</span>
+            <span class="comment-time">${formatTimeMono(c.timestamp)}</span>
+          </div>
+          <div class="comment-text">${escapeHtml(c.text)}</div>
+        </div>
+      `).join('');
+
+  panel.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-id">
+        <span>FACILITY · ${shortId(f.id)}</span>
+        <span>${formatTimeMono(f.createdAt)}</span>
+      </div>
+      <div class="detail-title-row">
+        <div class="detail-name">${escapeHtml(f.name)}</div>
+        <button class="detail-close" id="closeDetailBtn" aria-label="close">×</button>
+      </div>
+      ${f.category ? `<div class="detail-tag">${escapeHtml(f.category)}</div>` : ''}
+    </div>
+    <div class="detail-body">
+      <div class="detail-section">
+        <div class="section-label">ADDRESS</div>
+        <div class="section-content dim">${escapeHtml(f.address || '주소 미입력')}</div>
+        ${f.lat != null ? `<div class="section-content coord" style="margin-top:6px">${f.lat.toFixed(5)} , ${f.lng.toFixed(5)}</div>` : ''}
+      </div>
+      <div class="detail-section">
+        <div class="section-label">FEATURES & NOTES</div>
+        <div class="section-content">${f.notes ? escapeHtml(f.notes) : '<span class="comment-empty">기록된 메모가 없습니다.</span>'}</div>
+      </div>
+      <div class="detail-section">
+        <div class="section-label">UPDATES · ${comments.length}</div>
+        <div class="comment-list">${commentsHtml}</div>
+        <div class="comment-form">
+          <textarea id="commentInput" placeholder="업데이트 / 코멘트 추가..."></textarea>
+          <div class="comment-form-actions">
+            <button class="primary" id="addCommentBtn">댓글 등록</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="detail-footer">
+      <div class="detail-footer-meta">등록 · @${escapeHtml(f.createdBy || 'anon')}</div>
+      <div style="display:flex; gap:6px">
+        <button id="editFacilityBtn">편집</button>
+      </div>
+    </div>
+  `;
+  panel.classList.add('visible');
+
+  document.getElementById('closeDetailBtn').addEventListener('click', deselectFacility);
+  document.getElementById('editFacilityBtn').addEventListener('click', () => openAddModal(f.id));
+  document.getElementById('addCommentBtn').addEventListener('click', () => addComment(f.id));
+  // submit comment with Cmd/Ctrl + Enter
+  document.getElementById('commentInput').addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      addComment(f.id);
+    }
+  });
+}
+
+// ============ COMMENTS ============
+async function addComment(id) {
+  const input = document.getElementById('commentInput');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  if (!state.alias) { openAliasPrompt(); return; }
+
+  const f = state.facilities.find(x => x.id === id);
+  if (!f) return;
+  if (!f.comments) f.comments = [];
+  f.comments.push({
+    id: 'c_' + Date.now().toString(36),
+    text,
+    timestamp: new Date().toISOString(),
+    author: state.alias || 'anon',
+  });
+  await saveData();
+  renderDetail();
+  renderSidebar();
+}
+
+// ============ ADD/EDIT MODAL ============
+function openAddModal(editId) {
+  if (!state.alias) { openAliasPrompt(); return; }
+  state.editingId = editId || null;
+  state.pendingLocation = null;
+  document.getElementById('addModalTitle').textContent = editId ? 'EDIT FACILITY ENTRY' : 'NEW FACILITY ENTRY';
+  document.getElementById('deleteEntryBtn').style.display = editId ? 'inline-block' : 'none';
+
+  const f = editId ? state.facilities.find(x => x.id === editId) : null;
+  document.getElementById('fName').value = f ? f.name : '';
+  document.getElementById('fAddress').value = f ? (f.address || '') : '';
+  document.getElementById('fNotes').value = f ? (f.notes || '') : '';
+
+  document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('selected'));
+  if (f && f.category) {
+    const chip = document.querySelector(`.category-chip[data-cat="${f.category}"]`);
+    if (chip) chip.classList.add('selected');
+  }
+
+  if (f && f.lat != null) {
+    state.pendingLocation = { lat: f.lat, lng: f.lng, address: f.address };
+    showLocationStatus('success', `좌표 확보 · ${f.lat.toFixed(5)}, ${f.lng.toFixed(5)}`);
+  } else {
+    document.getElementById('locStatus').style.display = 'none';
+  }
+
+  document.getElementById('addModal').classList.add('visible');
+  setTimeout(() => document.getElementById('fName').focus(), 60);
+}
+
+function closeAddModal() {
+  document.getElementById('addModal').classList.remove('visible');
+  state.editingId = null;
+  state.pendingLocation = null;
+  cancelPickMode();
+}
+
+function showLocationStatus(kind, message) {
+  const el = document.getElementById('locStatus');
+  el.style.display = 'flex';
+  el.className = 'location-status' + (kind ? ' ' + kind : '');
+  el.innerHTML = `<span class="dot"></span><span>${escapeHtml(message)}</span>`;
+}
+
+async function handleGeocode() {
+  const addr = document.getElementById('fAddress').value.trim();
+  if (!addr) { showLocationStatus('error', '주소를 먼저 입력하세요'); return; }
+  showLocationStatus('', '주소 조회 중...');
+  const result = await geocodeAddress(addr);
+  if (result) {
+    state.pendingLocation = { lat: result.lat, lng: result.lng, address: addr };
+    showLocationStatus('success', `좌표 확보 · ${result.lat.toFixed(5)}, ${result.lng.toFixed(5)}`);
+    leafletMap.flyTo([result.lat, result.lng], 15, { duration: 0.5 });
+  } else {
+    showLocationStatus('error', '주소를 찾을 수 없습니다. 「지도에서 직접 지정」을 사용하세요.');
+    state.pendingLocation = null;
+  }
+}
+
+function startPickMode() {
+  document.getElementById('addModal').classList.remove('visible');
+  state.pickMode = true;
+  document.body.classList.add('pick-mode');
+  document.getElementById('pickOverlay').classList.add('visible');
+
+  pickHandler = (e) => {
+    state.pendingLocation = {
+      lat: e.latlng.lat,
+      lng: e.latlng.lng,
+      address: document.getElementById('fAddress').value || ''
+    };
+    showLocationStatus('success', `좌표 확보 · ${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`);
+    cancelPickMode();
+    document.getElementById('addModal').classList.add('visible');
+  };
+  leafletMap.once('click', pickHandler);
+}
+
+function cancelPickMode() {
+  state.pickMode = false;
+  document.body.classList.remove('pick-mode');
+  document.getElementById('pickOverlay').classList.remove('visible');
+  if (pickHandler) {
+    leafletMap.off('click', pickHandler);
+    pickHandler = null;
+  }
+}
+
+async function saveFacility() {
+  const name = document.getElementById('fName').value.trim();
+  const address = document.getElementById('fAddress').value.trim();
+  const notes = document.getElementById('fNotes').value.trim();
+  const selectedChip = document.querySelector('.category-chip.selected');
+  const category = selectedChip ? selectedChip.dataset.cat : '';
+
+  if (!name) { alert('업체명을 입력하세요.'); return; }
+
+  // If no location yet, try geocoding the address
+  if (!state.pendingLocation) {
+    if (!address) {
+      alert('주소를 입력하거나 지도에서 위치를 지정하세요.');
+      return;
+    }
+    showLocationStatus('', '주소 조회 중...');
+    const result = await geocodeAddress(address);
+    if (result) {
+      state.pendingLocation = { lat: result.lat, lng: result.lng, address };
+    } else {
+      showLocationStatus('error', '주소를 찾을 수 없습니다. 「지도에서 직접 지정」을 사용하세요.');
+      return;
+    }
+  }
+
+  if (state.editingId) {
+    const f = state.facilities.find(x => x.id === state.editingId);
+    if (f) {
+      f.name = name;
+      f.address = address;
+      f.notes = notes;
+      f.category = category;
+      f.lat = state.pendingLocation.lat;
+      f.lng = state.pendingLocation.lng;
+      f.updatedAt = new Date().toISOString();
+    }
+  } else {
+    const newF = {
+      id: generateId(),
+      name,
+      address,
+      notes,
+      category,
+      lat: state.pendingLocation.lat,
+      lng: state.pendingLocation.lng,
+      createdAt: new Date().toISOString(),
+      createdBy: state.alias || 'anon',
+      comments: [],
+    };
+    state.facilities.push(newF);
+    state.selectedId = newF.id;
+  }
+
+  await saveData();
+  closeAddModal();
+  renderSidebar();
+  renderMarkers();
+  renderDetail();
+  if (state.selectedId) panToFacility(state.selectedId);
+}
+
+async function deleteFacility() {
+  if (!state.editingId) return;
+  if (!confirm('이 업체를 삭제하시겠습니까? 모든 댓글도 함께 삭제됩니다.')) return;
+  state.facilities = state.facilities.filter(x => x.id !== state.editingId);
+  if (state.selectedId === state.editingId) state.selectedId = null;
+  await saveData();
+  closeAddModal();
+  renderSidebar();
+  renderMarkers();
+  renderDetail();
+}
+
+// ============ ALIAS ============
+function openAliasPrompt() {
+  document.getElementById('aliasInput').value = state.alias || '';
+  document.getElementById('welcomeModal').classList.add('visible');
+  setTimeout(() => document.getElementById('aliasInput').focus(), 60);
+}
+
+async function saveAliasAndClose() {
+  const v = document.getElementById('aliasInput').value.trim();
+  if (!v) {
+    document.getElementById('aliasInput').focus();
+    return;
+  }
+  await saveAlias(v);
+  document.getElementById('aliasLink').textContent = v;
+  document.getElementById('welcomeModal').classList.remove('visible');
+}
+
+// ============ INIT ============
+async function init() {
+  initMap();
+  await loadData();
+
+  document.getElementById('aliasLink').textContent = state.alias || 'UNKNOWN';
+  if (!state.alias) openAliasPrompt();
+
+  renderSidebar();
+  renderMarkers();
+  updateSyncTime();
+
+  // If facilities exist, fit map to show all of them
+  if (state.facilities.length > 0) {
+    const points = state.facilities
+      .filter(f => f.lat != null && f.lng != null)
+      .map(f => [f.lat, f.lng]);
+    if (points.length === 1) {
+      leafletMap.setView(points[0], 13);
+    } else if (points.length > 1) {
+      leafletMap.fitBounds(points, { padding: [60, 60], maxZoom: 13 });
+    }
+  }
+
+  // Wire events
+  document.getElementById('addBtn').addEventListener('click', () => openAddModal());
+  document.getElementById('searchInput').addEventListener('input', e => {
+    state.search = e.target.value;
+    renderSidebar();
+    renderMarkers();
+  });
+  document.getElementById('saveBtn').addEventListener('click', saveFacility);
+  document.getElementById('cancelAddBtn').addEventListener('click', closeAddModal);
+  document.getElementById('closeAddModalBtn').addEventListener('click', closeAddModal);
+  document.getElementById('geocodeBtn').addEventListener('click', handleGeocode);
+  document.getElementById('pickOnMapBtn').addEventListener('click', startPickMode);
+  document.getElementById('cancelPickBtn').addEventListener('click', () => {
+    cancelPickMode();
+    document.getElementById('addModal').classList.add('visible');
+  });
+  document.getElementById('aliasSaveBtn').addEventListener('click', saveAliasAndClose);
+  document.getElementById('aliasLink').addEventListener('click', openAliasPrompt);
+  document.getElementById('deleteEntryBtn').addEventListener('click', deleteFacility);
+
+  document.querySelectorAll('.category-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const wasSelected = chip.classList.contains('selected');
+      document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('selected'));
+      if (!wasSelected) chip.classList.add('selected');
+    });
+  });
+
+  document.getElementById('fAddress').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); handleGeocode(); }
+  });
+  document.getElementById('aliasInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveAliasAndClose();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (state.pickMode) {
+        cancelPickMode();
+        document.getElementById('addModal').classList.add('visible');
+      } else if (document.getElementById('addModal').classList.contains('visible')) {
+        closeAddModal();
+      } else if (state.selectedId) {
+        deselectFacility();
+      }
+    }
+  });
+
+  // Periodic sync clock
+  setInterval(updateSyncTime, 1000);
+
+  // Periodic refresh from shared storage (so multiple users see updates)
+  setInterval(async () => {
+    try {
+      const result = await window.storage.get(STORAGE_KEY, true);
+      if (result && result.value) {
+        const data = JSON.parse(result.value);
+        const incoming = Array.isArray(data.facilities) ? data.facilities : [];
+        // Only update if data has actually changed (cheap check by length + last id)
+        const currentSig = state.facilities.length + ':' + (state.facilities[state.facilities.length-1]?.id || '');
+        const incomingSig = incoming.length + ':' + (incoming[incoming.length-1]?.id || '');
+        if (currentSig !== incomingSig || JSON.stringify(state.facilities) !== JSON.stringify(incoming)) {
+          state.facilities = incoming;
+          renderSidebar();
+          renderMarkers();
+          if (state.selectedId) renderDetail();
+          updateSyncTime();
+        }
+      }
+    } catch (e) {}
+  }, 15000);
+}
+
+init();
+</script>
+</body>
+</html>
