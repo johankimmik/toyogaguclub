@@ -118,14 +118,12 @@ textarea {
 ::-webkit-scrollbar-thumb { background: var(--line-bright); }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
 
-/* App layout */
 .app {
   display: grid;
   grid-template-rows: 56px 1fr 28px;
   height: 100vh;
 }
 
-/* Header */
 .header {
   display: grid;
   grid-template-columns: 320px 1fr auto;
@@ -218,14 +216,12 @@ textarea {
   padding: 0 20px;
 }
 
-/* Main */
 .main {
   display: grid;
   grid-template-columns: 320px 1fr;
   overflow: hidden;
 }
 
-/* Sidebar */
 .sidebar {
   background: var(--bg-1);
   border-right: 1px solid var(--line);
@@ -350,7 +346,6 @@ textarea {
   margin-top: 6px;
 }
 
-/* Map */
 .map-area {
   position: relative;
   background: var(--bg-0);
@@ -392,7 +387,6 @@ textarea {
 }
 .leaflet-control-attribution a { color: var(--text-1) !important; }
 
-/* Custom marker */
 .factory-pin-wrapper { background: transparent !important; border: 0 !important; }
 .factory-pin {
   position: relative;
@@ -420,7 +414,6 @@ textarea {
 .factory-pin.active::before { background: var(--signal); }
 .factory-pin.active::after { opacity: 1; inset: -6px; }
 
-/* Map overlay readouts */
 .map-overlay-tl {
   position: absolute;
   top: 16px;
@@ -441,7 +434,6 @@ textarea {
 .map-overlay-tl-label { color: var(--text-3); width: 40px; }
 .map-overlay-tl-val { color: var(--text-1); }
 
-/* Pick mode banner */
 .pick-overlay {
   position: absolute;
   top: 16px;
@@ -468,7 +460,6 @@ textarea {
 @keyframes blink { 50% { opacity: 0.2; } }
 body.pick-mode .leaflet-container { cursor: crosshair !important; }
 
-/* Detail panel */
 .detail {
   position: absolute;
   top: 16px;
@@ -568,7 +559,6 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
   letter-spacing: 0.04em;
 }
 
-/* Comments */
 .comment-list {
   display: flex;
   flex-direction: column;
@@ -640,7 +630,6 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
   letter-spacing: 0.04em;
 }
 
-/* Modal */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -722,7 +711,6 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
 }
 .modal-footer .right-group { margin-left: auto; display: flex; gap: 8px; }
 
-/* Status bar */
 .status-bar {
   border-top: 1px solid var(--line);
   background: var(--bg-1);
@@ -742,6 +730,7 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
   background: var(--good);
   animation: pulse 2.4s infinite;
 }
+.status-dot.offline { background: var(--danger); animation: none; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .status-section.right { margin-left: auto; }
 .status-label { color: var(--text-3); }
@@ -753,7 +742,6 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
 }
 .alias-link:hover { text-decoration: underline; }
 
-/* Welcome / first run */
 .welcome-modal .modal { width: 440px; }
 .welcome-intro {
   font-size: 12.5px;
@@ -776,7 +764,6 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
   flex-shrink: 0;
 }
 
-/* Category chips */
 .category-options {
   display: flex;
   flex-wrap: wrap;
@@ -804,7 +791,6 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
   font-weight: 500;
 }
 
-/* Mobile */
 @media (max-width: 720px) {
   .header { grid-template-columns: 1fr auto; }
   .brand-text { display: none; }
@@ -842,14 +828,14 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
       <div class="sidebar-header">
         <div class="sidebar-title">REGISTERED FACILITIES</div>
         <div class="sidebar-count">
-          <span class="sidebar-count-num mono" id="totalCount">0</span>
+          <span class="sidebar-count-num mono" id="totalCount">00</span>
           <span class="sidebar-count-label">/ 등록 업체</span>
         </div>
       </div>
       <div class="sidebar-list" id="sidebarList">
         <div class="sidebar-empty">
-          <strong>등록된 업체가 없습니다</strong><br><br>
-          「+ 신규 등록」으로<br>첫 업체를 추가하세요
+          <strong>연결 중...</strong><br><br>
+          데이터베이스에서<br>업체 목록을 불러오고 있습니다
         </div>
       </div>
     </aside>
@@ -872,12 +858,12 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
 
   <footer class="status-bar">
     <div class="status-section">
-      <div class="status-dot"></div>
-      <span class="status-label">SYS</span>
-      <span class="status-val">ONLINE</span>
+      <div class="status-dot" id="statusDot"></div>
+      <span class="status-label">SYNC</span>
+      <span class="status-val" id="syncStatus">CONNECTING...</span>
     </div>
     <div class="status-section">
-      <span class="status-label">SYNC</span>
+      <span class="status-label">CLOCK</span>
       <span class="status-val" id="syncTime">--:--:--</span>
     </div>
     <div class="status-section">
@@ -953,7 +939,7 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
       <div class="welcome-intro">
         FACTORY ATLAS는 디자이너들이 함께 가공 업체 정보를 쌓고 공유하는 지도입니다.
       </div>
-      <div class="welcome-bullet"><span>등록한 업체와 댓글은 모든 사용자에게 공유됩니다</span></div>
+      <div class="welcome-bullet"><span>등록한 업체와 댓글은 모든 사용자에게 실시간으로 공유됩니다</span></div>
       <div class="welcome-bullet"><span>업데이트 사항은 댓글로 누적해 기록됩니다</span></div>
       <div class="welcome-bullet"><span>입력한 이름은 등록·댓글의 작성자로 표기됩니다</span></div>
       <div class="field" style="margin-top:6px">
@@ -969,9 +955,28 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
   </div>
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+  getFirestore, collection, doc, setDoc, deleteDoc,
+  onSnapshot, updateDoc, arrayUnion
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+// ============ FIREBASE CONFIG ============
+const firebaseConfig = {
+  apiKey: "AIzaSyDXyWDHRbmph0fYTfyy1mCOL9yGdaT9KSQ",
+  authDomain: "factory-atlas-1b5a8.firebaseapp.com",
+  projectId: "factory-atlas-1b5a8",
+  storageBucket: "factory-atlas-1b5a8.firebasestorage.app",
+  messagingSenderId: "382240458188",
+  appId: "1:382240458188:web:20fcb2e695fdbcef838969"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+const FACILITIES = collection(db, 'facilities');
+
 // ============ STATE ============
-const STORAGE_KEY = 'factory-atlas-data-v1';
 const ALIAS_KEY = 'factory-atlas-alias-v1';
 
 const state = {
@@ -987,45 +992,68 @@ const state = {
 let leafletMap = null;
 let markersById = {};
 let pickHandler = null;
+let initialFitDone = false;
 
-// ============ STORAGE ============
-async function loadData() {
-  try {
-    const result = await window.storage.get(STORAGE_KEY, true);
-    if (result && result.value) {
-      const data = JSON.parse(result.value);
-      state.facilities = Array.isArray(data.facilities) ? data.facilities : [];
-    }
-  } catch (e) {
-    state.facilities = [];
-  }
-  try {
-    const a = await window.storage.get(ALIAS_KEY, false);
-    if (a && a.value) state.alias = a.value;
-  } catch (e) {
-    state.alias = '';
-  }
+// ============ ALIAS (per-browser, localStorage) ============
+function loadAlias() {
+  try { state.alias = localStorage.getItem(ALIAS_KEY) || ''; }
+  catch (e) { state.alias = ''; }
 }
-
-async function saveData() {
-  try {
-    await window.storage.set(
-      STORAGE_KEY,
-      JSON.stringify({ facilities: state.facilities }),
-      true
-    );
-    updateSyncTime();
-  } catch (e) {
-    console.error('Save failed', e);
-    alert('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
-  }
-}
-
-async function saveAlias(alias) {
+function saveAliasLocal(alias) {
   state.alias = alias;
-  try {
-    await window.storage.set(ALIAS_KEY, alias, false);
-  } catch (e) {}
+  try { localStorage.setItem(ALIAS_KEY, alias); } catch (e) {}
+}
+
+// ============ FIRESTORE ============
+function startListening() {
+  setStatus('connecting');
+  onSnapshot(FACILITIES, (snapshot) => {
+    state.facilities = snapshot.docs.map(d => d.data());
+    setStatus('online');
+    renderSidebar();
+    renderMarkers();
+    if (state.selectedId) renderDetail();
+    updateSyncTime();
+
+    if (!initialFitDone && state.facilities.length > 0 && leafletMap) {
+      const points = state.facilities
+        .filter(f => f.lat != null && f.lng != null)
+        .map(f => [f.lat, f.lng]);
+      if (points.length === 1) {
+        leafletMap.setView(points[0], 13);
+      } else if (points.length > 1) {
+        leafletMap.fitBounds(points, { padding: [60, 60], maxZoom: 13 });
+      }
+      initialFitDone = true;
+    }
+  }, (error) => {
+    console.error('Firestore listen error:', error);
+    setStatus('offline');
+    document.getElementById('sidebarList').innerHTML =
+      `<div class="sidebar-empty"><strong style="color:var(--warn)">데이터 연결 실패</strong><br><br>네트워크를 확인하고<br>새로고침해 주세요</div>`;
+  });
+}
+
+async function dbAddFacility(facility) {
+  await setDoc(doc(db, 'facilities', facility.id), facility);
+}
+async function dbUpdateFacility(id, updates) {
+  await updateDoc(doc(db, 'facilities', id), updates);
+}
+async function dbDeleteFacility(id) {
+  await deleteDoc(doc(db, 'facilities', id));
+}
+async function dbAddComment(id, comment) {
+  await updateDoc(doc(db, 'facilities', id), { comments: arrayUnion(comment) });
+}
+
+function setStatus(s) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('syncStatus');
+  if (!dot || !txt) return;
+  if (s === 'online') { dot.classList.remove('offline'); txt.textContent = 'LIVE'; }
+  else if (s === 'connecting') { dot.classList.remove('offline'); txt.textContent = 'CONNECTING...'; }
+  else { dot.classList.add('offline'); txt.textContent = 'OFFLINE'; }
 }
 
 // ============ HELPERS ============
@@ -1075,7 +1103,7 @@ function initMap() {
     attributionControl: true,
     preferCanvas: true,
     minZoom: 5,
-  }).setView([36.3, 127.8], 7); // South Korea overview
+  }).setView([36.3, 127.8], 7);
 
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '© OpenStreetMap · © CARTO',
@@ -1094,6 +1122,7 @@ function initMap() {
 }
 
 function renderMarkers() {
+  if (!leafletMap) return;
   Object.values(markersById).forEach(m => leafletMap.removeLayer(m));
   markersById = {};
 
@@ -1117,7 +1146,7 @@ function renderMarkers() {
 
 function panToFacility(id) {
   const f = state.facilities.find(x => x.id === id);
-  if (!f || f.lat == null) return;
+  if (!f || f.lat == null || !leafletMap) return;
   const targetZoom = Math.max(14, leafletMap.getZoom());
   leafletMap.flyTo([f.lat, f.lng], targetZoom, { duration: 0.6 });
 }
@@ -1125,28 +1154,20 @@ function panToFacility(id) {
 // ============ GEOCODING (Nominatim) ============
 async function geocodeAddress(address) {
   const headers = { 'Accept': 'application/json' };
-  // try with KR country bias first
   try {
     const url1 = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&accept-language=ko&limit=1&countrycodes=kr`;
     const r1 = await fetch(url1, { headers });
     if (r1.ok) {
       const d1 = await r1.json();
-      if (d1 && d1.length > 0) {
-        return { lat: parseFloat(d1[0].lat), lng: parseFloat(d1[0].lon), displayName: d1[0].display_name };
-      }
+      if (d1 && d1.length > 0) return { lat: parseFloat(d1[0].lat), lng: parseFloat(d1[0].lon) };
     }
-    // fallback: no country bias
     const url2 = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&accept-language=ko&limit=1`;
     const r2 = await fetch(url2, { headers });
     if (r2.ok) {
       const d2 = await r2.json();
-      if (d2 && d2.length > 0) {
-        return { lat: parseFloat(d2[0].lat), lng: parseFloat(d2[0].lon), displayName: d2[0].display_name };
-      }
+      if (d2 && d2.length > 0) return { lat: parseFloat(d2[0].lat), lng: parseFloat(d2[0].lon) };
     }
-  } catch (e) {
-    console.warn('Geocode error', e);
-  }
+  } catch (e) { console.warn('Geocode error', e); }
   return null;
 }
 
@@ -1207,7 +1228,6 @@ function selectFacility(id, panTo) {
   renderMarkers();
   renderDetail();
   if (panTo) panToFacility(id);
-  // ensure selected item is in view in sidebar
   const activeEl = document.querySelector('.item.active');
   if (activeEl) activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
@@ -1283,7 +1303,6 @@ function renderDetail() {
   document.getElementById('closeDetailBtn').addEventListener('click', deselectFacility);
   document.getElementById('editFacilityBtn').addEventListener('click', () => openAddModal(f.id));
   document.getElementById('addCommentBtn').addEventListener('click', () => addComment(f.id));
-  // submit comment with Cmd/Ctrl + Enter
   document.getElementById('commentInput').addEventListener('keydown', e => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
@@ -1300,18 +1319,21 @@ async function addComment(id) {
   if (!text) return;
   if (!state.alias) { openAliasPrompt(); return; }
 
-  const f = state.facilities.find(x => x.id === id);
-  if (!f) return;
-  if (!f.comments) f.comments = [];
-  f.comments.push({
-    id: 'c_' + Date.now().toString(36),
-    text,
-    timestamp: new Date().toISOString(),
-    author: state.alias || 'anon',
-  });
-  await saveData();
-  renderDetail();
-  renderSidebar();
+  const btn = document.getElementById('addCommentBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '등록 중...'; }
+  try {
+    await dbAddComment(id, {
+      id: 'c_' + Date.now().toString(36),
+      text,
+      timestamp: new Date().toISOString(),
+      author: state.alias || 'anon',
+    });
+    input.value = '';
+  } catch (e) {
+    alert('댓글 등록 실패: ' + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '댓글 등록'; }
+  }
 }
 
 // ============ ADD/EDIT MODAL ============
@@ -1378,7 +1400,6 @@ function startPickMode() {
   state.pickMode = true;
   document.body.classList.add('pick-mode');
   document.getElementById('pickOverlay').classList.add('visible');
-
   pickHandler = (e) => {
     state.pendingLocation = {
       lat: e.latlng.lat,
@@ -1411,7 +1432,6 @@ async function saveFacility() {
 
   if (!name) { alert('업체명을 입력하세요.'); return; }
 
-  // If no location yet, try geocoding the address
   if (!state.pendingLocation) {
     if (!address) {
       alert('주소를 입력하거나 지도에서 위치를 지정하세요.');
@@ -1427,97 +1447,80 @@ async function saveFacility() {
     }
   }
 
-  if (state.editingId) {
-    const f = state.facilities.find(x => x.id === state.editingId);
-    if (f) {
-      f.name = name;
-      f.address = address;
-      f.notes = notes;
-      f.category = category;
-      f.lat = state.pendingLocation.lat;
-      f.lng = state.pendingLocation.lng;
-      f.updatedAt = new Date().toISOString();
+  const saveBtn = document.getElementById('saveBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = '저장 중...';
+  try {
+    if (state.editingId) {
+      await dbUpdateFacility(state.editingId, {
+        name, address, notes, category,
+        lat: state.pendingLocation.lat,
+        lng: state.pendingLocation.lng,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      const newF = {
+        id: generateId(),
+        name, address, notes, category,
+        lat: state.pendingLocation.lat,
+        lng: state.pendingLocation.lng,
+        createdAt: new Date().toISOString(),
+        createdBy: state.alias || 'anon',
+        comments: [],
+      };
+      await dbAddFacility(newF);
+      state.selectedId = newF.id;
     }
-  } else {
-    const newF = {
-      id: generateId(),
-      name,
-      address,
-      notes,
-      category,
-      lat: state.pendingLocation.lat,
-      lng: state.pendingLocation.lng,
-      createdAt: new Date().toISOString(),
-      createdBy: state.alias || 'anon',
-      comments: [],
-    };
-    state.facilities.push(newF);
-    state.selectedId = newF.id;
+    closeAddModal();
+    if (state.selectedId) panToFacility(state.selectedId);
+  } catch (e) {
+    alert('저장 실패: ' + (e.message || e));
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = '저장';
   }
-
-  await saveData();
-  closeAddModal();
-  renderSidebar();
-  renderMarkers();
-  renderDetail();
-  if (state.selectedId) panToFacility(state.selectedId);
 }
 
 async function deleteFacility() {
   if (!state.editingId) return;
   if (!confirm('이 업체를 삭제하시겠습니까? 모든 댓글도 함께 삭제됩니다.')) return;
-  state.facilities = state.facilities.filter(x => x.id !== state.editingId);
-  if (state.selectedId === state.editingId) state.selectedId = null;
-  await saveData();
-  closeAddModal();
-  renderSidebar();
-  renderMarkers();
-  renderDetail();
+  try {
+    await dbDeleteFacility(state.editingId);
+    if (state.selectedId === state.editingId) state.selectedId = null;
+    closeAddModal();
+  } catch (e) {
+    alert('삭제 실패: ' + (e.message || e));
+  }
 }
 
-// ============ ALIAS ============
+// ============ ALIAS PROMPT ============
 function openAliasPrompt() {
   document.getElementById('aliasInput').value = state.alias || '';
   document.getElementById('welcomeModal').classList.add('visible');
   setTimeout(() => document.getElementById('aliasInput').focus(), 60);
 }
 
-async function saveAliasAndClose() {
+function saveAliasAndClose() {
   const v = document.getElementById('aliasInput').value.trim();
-  if (!v) {
-    document.getElementById('aliasInput').focus();
-    return;
-  }
-  await saveAlias(v);
+  if (!v) { document.getElementById('aliasInput').focus(); return; }
+  saveAliasLocal(v);
   document.getElementById('aliasLink').textContent = v;
   document.getElementById('welcomeModal').classList.remove('visible');
 }
 
 // ============ INIT ============
-async function init() {
+function init() {
   initMap();
-  await loadData();
+  loadAlias();
 
   document.getElementById('aliasLink').textContent = state.alias || 'UNKNOWN';
   if (!state.alias) openAliasPrompt();
 
-  renderSidebar();
-  renderMarkers();
+  // Real-time listener (replaces local-storage polling)
+  startListening();
   updateSyncTime();
 
-  // If facilities exist, fit map to show all of them
-  if (state.facilities.length > 0) {
-    const points = state.facilities
-      .filter(f => f.lat != null && f.lng != null)
-      .map(f => [f.lat, f.lng]);
-    if (points.length === 1) {
-      leafletMap.setView(points[0], 13);
-    } else if (points.length > 1) {
-      leafletMap.fitBounds(points, { padding: [60, 60], maxZoom: 13 });
-    }
-  }
-
-  // Wire events
+  // Event wiring
   document.getElementById('addBtn').addEventListener('click', () => openAddModal());
   document.getElementById('searchInput').addEventListener('input', e => {
     state.search = e.target.value;
@@ -1565,29 +1568,7 @@ async function init() {
     }
   });
 
-  // Periodic sync clock
   setInterval(updateSyncTime, 1000);
-
-  // Periodic refresh from shared storage (so multiple users see updates)
-  setInterval(async () => {
-    try {
-      const result = await window.storage.get(STORAGE_KEY, true);
-      if (result && result.value) {
-        const data = JSON.parse(result.value);
-        const incoming = Array.isArray(data.facilities) ? data.facilities : [];
-        // Only update if data has actually changed (cheap check by length + last id)
-        const currentSig = state.facilities.length + ':' + (state.facilities[state.facilities.length-1]?.id || '');
-        const incomingSig = incoming.length + ':' + (incoming[incoming.length-1]?.id || '');
-        if (currentSig !== incomingSig || JSON.stringify(state.facilities) !== JSON.stringify(incoming)) {
-          state.facilities = incoming;
-          renderSidebar();
-          renderMarkers();
-          if (state.selectedId) renderDetail();
-          updateSyncTime();
-        }
-      }
-    } catch (e) {}
-  }, 15000);
 }
 
 init();
