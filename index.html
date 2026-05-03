@@ -390,29 +390,45 @@ textarea {
 .factory-pin-wrapper { background: transparent !important; border: 0 !important; }
 .factory-pin {
   position: relative;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   transition: transform 0.15s;
+  transform-origin: 50% 50%;
 }
 .factory-pin::before {
   content: '';
   position: absolute;
   inset: 0;
   background: var(--accent);
-  border: 2px solid var(--bg-0);
+  border: 1.5px solid var(--bg-0);
   box-sizing: border-box;
+  border-radius: 50%;
+}
+/* 정확한 좌표 표시용 중앙 점 (1px) */
+.factory-pin > .pin-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 2px;
+  margin: -1px 0 0 -1px;
+  background: var(--bg-0);
+  border-radius: 50%;
+  pointer-events: none;
 }
 .factory-pin::after {
   content: '';
   position: absolute;
   inset: -5px;
   border: 1px solid var(--signal);
+  border-radius: 50%;
   opacity: 0;
   transition: opacity 0.2s, inset 0.2s;
 }
-.factory-pin:hover { transform: scale(1.15); }
+.factory-pin:hover { transform: scale(1.18); }
 .factory-pin.active::before { background: var(--signal); }
 .factory-pin.active::after { opacity: 1; inset: -6px; }
+
 
 .map-overlay-tl {
   position: absolute;
@@ -849,7 +865,7 @@ body.pick-mode .leaflet-container { cursor: crosshair !important; }
       </div>
       <div class="pick-overlay" id="pickOverlay">
         <span class="pick-overlay-dot"></span>
-        <span>PICK MODE · 지도에서 위치 클릭</span>
+        <span>PICK MODE · 지도에서 정확한 위치 클릭 (가능한 줌인 후 클릭)</span>
         <button class="ghost" id="cancelPickBtn">ESC</button>
       </div>
       <div class="detail" id="detailPanel"></div>
@@ -1115,8 +1131,8 @@ function initMap() {
   }).addTo(leafletMap);
 
   leafletMap.on('mousemove', (e) => {
-    document.getElementById('latReadout').textContent = e.latlng.lat.toFixed(5);
-    document.getElementById('lngReadout').textContent = e.latlng.lng.toFixed(5);
+    document.getElementById('latReadout').textContent = e.latlng.lat.toFixed(6);
+    document.getElementById('lngReadout').textContent = e.latlng.lng.toFixed(6);
   });
   leafletMap.on('zoomend', () => {
     document.getElementById('zoomReadout').textContent = leafletMap.getZoom();
@@ -1134,9 +1150,9 @@ function renderMarkers() {
     const isActive = state.selectedId === f.id;
     const icon = L.divIcon({
       className: 'factory-pin-wrapper',
-      html: `<div class="factory-pin ${isActive ? 'active' : ''}" title="${escapeHtml(f.name)}"></div>`,
-      iconSize: [14, 14],
-      iconAnchor: [7, 7],
+      html: `<div class="factory-pin ${isActive ? 'active' : ''}" title="${escapeHtml(f.name)}"><span class="pin-dot"></span></div>`,
+      iconSize: [12, 12],
+      iconAnchor: [6, 6],
     });
     const m = L.marker([f.lat, f.lng], { icon, riseOnHover: true }).addTo(leafletMap);
     m.on('click', (e) => {
@@ -1154,24 +1170,159 @@ function panToFacility(id) {
   leafletMap.flyTo([f.lat, f.lng], targetZoom, { duration: 0.6 });
 }
 
-// ============ GEOCODING (Nominatim) ============
-async function geocodeAddress(address) {
-  const headers = { 'Accept': 'application/json' };
+// ============ GEOCODING (다중 소스 + 한글 주소 정규화) ============
+// 한국 본토 대략 bounding box (제주 포함)
+const KR_VIEWBOX = '124.5,33.0,132.0,38.7'; // left,bottom,right,top (lng,lat)
+
+function normalizeKoreanAddress(addr) {
+  if (!addr) return '';
+  let s = String(addr);
+  // 괄호 안의 부가정보 제거 (예: "...로 39 (성수동2가, ABC빌딩)")
+  s = s.replace(/[\(\[（［][^\)\]）］]*[\)\]）］]/g, ' ');
+  // 우편번호(5자리) 제거
+  s = s.replace(/\b\d{5}\b/g, ' ');
+  // 동/층/호/관/실 등 상세 단위 제거 (정밀도 떨어뜨림)
+  s = s.replace(/\s+(지하)?\s*[A-Za-z가-힣0-9\-]*동\s+\d+호\b.*/g, ' ');
+  s = s.replace(/\s+\d+\s*층(\s+\d+호)?\b.*/g, ' ');
+  s = s.replace(/\s+[Bb]\s*\d+\b.*/g, ' ');
+  s = s.replace(/\s+\d+호\b.*/g, ' ');
+  // 다중 공백 정리
+  s = s.replace(/\s+/g, ' ').trim();
+  return s;
+}
+
+// 도로명/지번이 끝나는 위치까지만 (예: "서울특별시 성동구 성수이로7길 39")
+function trimToStreetNumber(addr) {
+  if (!addr) return '';
+  // "... 로/길 + 숫자(-숫자)?" 까지만 남기기
+  const m = String(addr).match(/^(.*?(?:로|길|로\d+길)\s*\d+(?:-\d+)?)\b/);
+  if (m) return m[1].trim();
+  // 지번 주소: "... 동/리 + 숫자(-숫자)?" 까지
+  const m2 = String(addr).match(/^(.*?(?:동|리|가)\s*\d+(?:-\d+)?)\b/);
+  if (m2) return m2[1].trim();
+  return '';
+}
+
+async function geocodeViaNominatim(query, { restrictKr = true } = {}) {
+  const params = new URLSearchParams({
+    format: 'jsonv2',
+    q: query,
+    'accept-language': 'ko',
+    addressdetails: '1',
+    limit: '5',
+  });
+  if (restrictKr) {
+    params.set('countrycodes', 'kr');
+    params.set('viewbox', KR_VIEWBOX);
+    params.set('bounded', '1');
+  }
+  const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
   try {
-    const url1 = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&accept-language=ko&limit=1&countrycodes=kr`;
-    const r1 = await fetch(url1, { headers });
-    if (r1.ok) {
-      const d1 = await r1.json();
-      if (d1 && d1.length > 0) return { lat: parseFloat(d1[0].lat), lng: parseFloat(d1[0].lon) };
-    }
-    const url2 = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&accept-language=ko&limit=1`;
-    const r2 = await fetch(url2, { headers });
-    if (r2.ok) {
-      const d2 = await r2.json();
-      if (d2 && d2.length > 0) return { lat: parseFloat(d2[0].lat), lng: parseFloat(d2[0].lon) };
-    }
-  } catch (e) { console.warn('Geocode error', e); }
-  return null;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+    const candidates = data
+      .map(d => ({
+        lat: parseFloat(d.lat),
+        lng: parseFloat(d.lon),
+        rank: parseInt(d.place_rank, 10) || 0,
+        importance: parseFloat(d.importance) || 0,
+        display: d.display_name || '',
+        type: d.type || '',
+        category: d.category || d.class || '',
+      }))
+      .filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lng));
+    if (candidates.length === 0) return null;
+    // place_rank 가 클수록 더 구체적인 위치(건물·도로 단위)
+    // 16 미만은 시·도 수준이라 신뢰하지 않음
+    const precise = candidates.filter(c => c.rank >= 16);
+    const pool = precise.length > 0 ? precise : candidates;
+    pool.sort((a, b) => (b.rank - a.rank) || (b.importance - a.importance));
+    const best = pool[0];
+    return {
+      lat: best.lat,
+      lng: best.lng,
+      display: best.display,
+      score: best.rank,
+      source: 'nominatim',
+    };
+  } catch (e) {
+    console.warn('Nominatim error', e);
+    return null;
+  }
+}
+
+async function geocodeViaPhoton(query) {
+  try {
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lang=default&limit=5`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const features = (data && data.features) || [];
+    if (features.length === 0) return null;
+    const krFeatures = features.filter(f => f && f.properties && f.properties.countrycode === 'KR');
+    const list = krFeatures.length > 0 ? krFeatures : features;
+    // Photon 의 OSM 타입을 점수화 (house > street > locality > city)
+    const typeScore = { house: 30, street: 26, locality: 22, neighbourhood: 22, suburb: 20, city: 16, county: 12, state: 8, country: 4 };
+    list.sort((a, b) => (typeScore[b.properties.osm_value] || 18) - (typeScore[a.properties.osm_value] || 18));
+    const best = list[0];
+    if (!best || !best.geometry || !Array.isArray(best.geometry.coordinates)) return null;
+    const [lng, lat] = best.geometry.coordinates;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const p = best.properties || {};
+    const display = [p.name, p.street, p.housenumber, p.district, p.city, p.state, p.country]
+      .filter(Boolean).join(', ');
+    return { lat, lng, display, score: typeScore[p.osm_value] || 18, source: 'photon' };
+  } catch (e) {
+    console.warn('Photon error', e);
+    return null;
+  }
+}
+
+async function geocodeAddress(address) {
+  if (!address) return null;
+  const original = String(address).trim();
+  if (!original) return null;
+  const cleaned = normalizeKoreanAddress(original);
+  const street = trimToStreetNumber(cleaned);
+
+  const tried = [];
+  const candidates = [];
+
+  // 1) 정규화된 주소 + 한국 한정
+  if (cleaned && !tried.includes(cleaned)) {
+    tried.push(cleaned);
+    const r = await geocodeViaNominatim(cleaned, { restrictKr: true });
+    if (r) candidates.push(r);
+  }
+
+  // 2) 도로명+번호까지만 자른 주소 (건물명 제거된 형태)
+  if (street && !tried.includes(street)) {
+    tried.push(street);
+    const r = await geocodeViaNominatim(street, { restrictKr: true });
+    if (r) candidates.push(r);
+  }
+
+  // 3) Photon (OSM 기반이지만 다른 인덱스)
+  if (cleaned) {
+    const r = await geocodeViaPhoton(cleaned);
+    if (r) candidates.push(r);
+  }
+  if (street && street !== cleaned) {
+    const r = await geocodeViaPhoton(street);
+    if (r) candidates.push(r);
+  }
+
+  // 4) 마지막 보루 - 원본 주소 전 세계 검색
+  if (candidates.length === 0) {
+    const r = await geocodeViaNominatim(original, { restrictKr: false });
+    if (r) candidates.push(r);
+  }
+
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0];
 }
 
 // ============ RENDERING ============
@@ -1277,7 +1428,7 @@ function renderDetail() {
       <div class="detail-section">
         <div class="section-label">ADDRESS</div>
         <div class="section-content dim">${escapeHtml(f.address || '주소 미입력')}</div>
-        ${f.lat != null ? `<div class="section-content coord" style="margin-top:6px">${f.lat.toFixed(5)} , ${f.lng.toFixed(5)}</div>` : ''}
+        ${f.lat != null ? `<div class="section-content coord" style="margin-top:6px">${f.lat.toFixed(6)} , ${f.lng.toFixed(6)}</div>` : ''}
       </div>
       <div class="detail-section">
         <div class="section-label">FEATURES & NOTES</div>
@@ -1360,7 +1511,7 @@ function openAddModal(editId) {
 
   if (f && f.lat != null) {
     state.pendingLocation = { lat: f.lat, lng: f.lng, address: f.address };
-    showLocationStatus('success', `좌표 확보 · ${f.lat.toFixed(5)}, ${f.lng.toFixed(5)}`);
+    showLocationStatus('success', `좌표 확보 · ${f.lat.toFixed(6)}, ${f.lng.toFixed(6)}`);
   } else {
     document.getElementById('locStatus').style.display = 'none';
   }
@@ -1390,8 +1541,9 @@ async function handleGeocode() {
   const result = await geocodeAddress(addr);
   if (result) {
     state.pendingLocation = { lat: result.lat, lng: result.lng, address: addr };
-    showLocationStatus('success', `좌표 확보 · ${result.lat.toFixed(5)}, ${result.lng.toFixed(5)}`);
-    leafletMap.flyTo([result.lat, result.lng], 15, { duration: 0.5 });
+    const matched = result.display ? ` · 매칭: ${result.display}` : '';
+    showLocationStatus('success', `좌표 확보 · ${result.lat.toFixed(6)}, ${result.lng.toFixed(6)}${matched}`);
+    leafletMap.flyTo([result.lat, result.lng], 17, { duration: 0.5 });
   } else {
     showLocationStatus('error', '주소를 찾을 수 없습니다. 「지도에서 직접 지정」을 사용하세요.');
     state.pendingLocation = null;
@@ -1403,13 +1555,29 @@ function startPickMode() {
   state.pickMode = true;
   document.body.classList.add('pick-mode');
   document.getElementById('pickOverlay').classList.add('visible');
+
+  // 정밀도 보장을 위해 최소 줌 16 으로 확대 (약 ~5m/픽셀 이하)
+  const MIN_PICK_ZOOM = 16;
+  if (leafletMap.getZoom() < MIN_PICK_ZOOM) {
+    // 입력된 주소가 있으면 우선 그 주변으로 이동, 없으면 현재 중심에서 줌인
+    const addr = document.getElementById('fAddress').value.trim();
+    if (addr) {
+      geocodeAddress(addr).then(r => {
+        if (r) leafletMap.setView([r.lat, r.lng], MIN_PICK_ZOOM);
+        else leafletMap.setZoom(MIN_PICK_ZOOM);
+      }).catch(() => leafletMap.setZoom(MIN_PICK_ZOOM));
+    } else {
+      leafletMap.setZoom(MIN_PICK_ZOOM);
+    }
+  }
+
   pickHandler = (e) => {
     state.pendingLocation = {
       lat: e.latlng.lat,
       lng: e.latlng.lng,
       address: document.getElementById('fAddress').value || ''
     };
-    showLocationStatus('success', `좌표 확보 · ${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`);
+    showLocationStatus('success', `좌표 확보 · ${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`);
     cancelPickMode();
     document.getElementById('addModal').classList.add('visible');
   };
